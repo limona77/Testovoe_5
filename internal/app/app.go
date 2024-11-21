@@ -3,7 +3,10 @@ package app
 import (
 	"Testovoe_5/internal/config"
 	"Testovoe_5/internal/controller"
+	"Testovoe_5/internal/pkg/postgres"
 	"Testovoe_5/internal/pkg/slogger"
+	"Testovoe_5/internal/repository"
+	"Testovoe_5/internal/service"
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/gookit/slog"
@@ -26,13 +29,27 @@ func Run() {
 	slog.Info("config ok", cfg)
 	router := gin.Default()
 
+	slog.Info("connecting to postgres")
+	db := postgres.New(cfg.PG.URL)
+	defer db.Close()
+	slog.Info("connect to postgres ok")
+
+	slog.Info("init repositories")
+	repositories := repository.NewRepositories(db)
+
+	slog.Info("init services")
+	deps := service.ServicesDeps{
+		Repository: repositories,
+	}
+
+	services := service.NewServices(deps)
 	srv := &http.Server{
 		Addr:         ":8080",
 		Handler:      router.Handler(),
 		ReadTimeout:  ReadTimeout,
 		WriteTimeout: WriteTimeout,
 	}
-	controller.NewRouter(router)
+	controller.NewRouter(router, services)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("listen: %s\\n", err)
