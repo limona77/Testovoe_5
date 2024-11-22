@@ -7,7 +7,9 @@ import (
 	"Testovoe_5/internal/pkg/slogger"
 	"Testovoe_5/internal/repository"
 	"Testovoe_5/internal/service"
+	"Testovoe_5/internal/service/api"
 	"context"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/gookit/slog"
 	"log"
@@ -38,8 +40,10 @@ func Run() {
 	repositories := repository.NewRepositories(db)
 
 	slog.Info("init services")
+	apiClient := api.NewApiClient(cfg)
 	deps := service.ServicesDeps{
 		Repository: repositories,
+		ClientApi:  apiClient,
 	}
 
 	services := service.NewServices(deps)
@@ -51,7 +55,7 @@ func Run() {
 	}
 	controller.NewRouter(router, services)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %s\\n", err)
 		}
 	}()

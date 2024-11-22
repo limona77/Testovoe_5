@@ -139,3 +139,89 @@ func (sR *SongsRepository) Text(c context.Context, song model.Song, limit, offse
 	return text, nil
 
 }
+
+func (sR *SongsRepository) Delete(c context.Context, groupName, songName string) error {
+	const op = "repository.Delete"
+
+	query := "DELETE FROM public.songs WHERE group_name = $1 AND song_name = $2"
+
+	result, err := sR.DB.Pool.Exec(c, query, groupName, songName)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	rowsAffected := result.RowsAffected()
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("%s: %w", op, custom_errors.ErrNoRows)
+	}
+
+	return nil
+}
+
+func (sR *SongsRepository) Update(c context.Context, song model.Song) error {
+	const op = "repository.Update"
+
+	query := "UPDATE public.songs SET updated_at = NOW()"
+	args := []interface{}{}
+	paramIndex := 1
+
+	if song.GroupName != "" {
+		query += fmt.Sprintf(", group_name = $%v", paramIndex)
+		args = append(args, song.GroupName)
+		paramIndex++
+	}
+	if song.SongName != "" {
+		query += fmt.Sprintf(", song_name = $%v", paramIndex)
+		args = append(args, song.SongName)
+		paramIndex++
+	}
+	if !song.ReleaseDate.IsZero() {
+		query += fmt.Sprintf(", release_date = $%v", paramIndex)
+		args = append(args, song.ReleaseDate)
+		paramIndex++
+	}
+	if song.Text != "" {
+		query += fmt.Sprintf(", text = $%v", paramIndex)
+		args = append(args, song.Text)
+		paramIndex++
+	}
+	if song.Link != "" {
+		query += fmt.Sprintf(", link = $%v", paramIndex)
+		args = append(args, song.Link)
+		paramIndex++
+	}
+
+	query += " WHERE id = $" + fmt.Sprint(len(args)+1)
+	slog.Info("query", query, "len", len(args), "args", args)
+	args = append(args, song.ID)
+
+	result, err := sR.DB.Pool.Exec(c, query, args...)
+	if err != nil {
+		return fmt.Errorf("%s: failed to update song with ID %d: %w", op, song.ID, err)
+	}
+
+	rowsAffected := result.RowsAffected()
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("%s: %w", op, custom_errors.ErrNoRows)
+	}
+
+	return nil
+}
+
+func (sR *SongsRepository) Create(c context.Context, song model.Song) error {
+	const op = "repository.Create"
+
+	query := `
+		INSERT INTO songs (group_name, song_name, release_date, text, link, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+	`
+	slog.Info("song", song.Text)
+	_, err := sR.DB.Pool.Query(c, query, song.GroupName, song.SongName, song.ReleaseDate, song.Text, song.Link)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+
+	}
+	return nil
+}

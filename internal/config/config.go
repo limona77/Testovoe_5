@@ -9,13 +9,16 @@ type (
 	Config struct {
 		HTTP
 		PG
-		Env string `env:"ENV"`
+		ExternalApi
 	}
 	HTTP struct {
 		Port string `env:"HTTP_PORT"`
 	}
 	PG struct {
 		URL string ` env:"PG_URL_LOCALHOST"`
+	}
+	ExternalApi struct {
+		URL string `env:"EXTERNAL_API_URL"`
 	}
 )
 
