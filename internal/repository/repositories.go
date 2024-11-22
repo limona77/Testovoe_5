@@ -8,6 +8,7 @@ import (
 
 type ISongRepository interface {
 	Songs(c context.Context, filter model.Song, limit, offset int) ([]model.Song, error)
+	Text(c context.Context, song model.Song, limit, offset int) (text string, err error)
 }
 
 type Repositories struct {

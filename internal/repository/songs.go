@@ -5,9 +5,10 @@ import (
 	"Testovoe_5/internal/model"
 	"Testovoe_5/internal/pkg/postgres"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/gookit/slog"
-
 	"strings"
 )
 
@@ -19,7 +20,7 @@ func NewSongsRepository(db *postgres.DB) *SongsRepository {
 	return &SongsRepository{db}
 }
 
-func (sR *SongsRepository) Songs(c context.Context, filter model.Song, limit, offset int) ([]model.Song, error) {
+func (sR *SongsRepository) Songs(c context.Context, filter model.Song, limit, offset int) (songs []model.Song, err error) {
 	const op = "repository.GetSongs"
 
 	query := "SELECT id, group_name, song_name, release_date, text, link, created_at, updated_at FROM public.songs"
@@ -77,7 +78,6 @@ func (sR *SongsRepository) Songs(c context.Context, filter model.Song, limit, of
 	}
 	defer rows.Close()
 
-	var songs []model.Song
 	for rows.Next() {
 		var song model.Song
 		err = rows.Scan(
@@ -100,4 +100,42 @@ func (sR *SongsRepository) Songs(c context.Context, filter model.Song, limit, of
 	}
 	slog.Info(songs)
 	return songs, nil
+}
+
+func (sR *SongsRepository) Text(c context.Context, song model.Song, limit, offset int) (text string, err error) {
+	const op = "repository.Text"
+
+	query := "SELECT text FROM public.songs WHERE group_name = $1 AND song_name = $2"
+	var songText string
+
+	err = sR.DB.Pool.QueryRow(c, query, song.GroupName, song.SongName).Scan(&songText)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("%s: %w", op, custom_errors.ErrNoRows)
+		}
+
+		return "", fmt.Errorf("%s: %w", op, err)
+	}
+	couplets := strings.Split(songText, "\n\n")
+
+	start := offset
+	end := limit
+
+	if start >= len(couplets) || start < 0 {
+		return "", custom_errors.ErrOffsetOutOfRange
+	}
+
+	if end > len(couplets) {
+		end = len(couplets)
+	}
+	var selectedVerses []string
+	if start == end {
+		selectedVerses = couplets[start : end+1]
+	} else {
+		selectedVerses = couplets[start:end]
+	}
+
+	text = strings.Join(selectedVerses, "\n")
+	return text, nil
+
 }

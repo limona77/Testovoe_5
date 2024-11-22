@@ -23,3 +23,12 @@ func (s *SongService) Songs(c context.Context, filter model.Song, limit, offset 
 	}
 	return songs, nil
 }
+
+func (s *SongService) Text(c context.Context, song model.Song, limit, offset int) (text string, err error) {
+	text, err = s.songRepository.Text(c, song, limit, offset)
+	if err != nil {
+		slog.Error("error get text", err)
+		return "", err
+	}
+	return text, nil
+}
