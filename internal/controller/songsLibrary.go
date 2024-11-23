@@ -5,6 +5,7 @@ import (
 	"Testovoe_5/internal/model"
 	"Testovoe_5/internal/service"
 	"errors"
+	"github.com/gookit/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,17 +16,40 @@ import (
 type songsLibrary struct {
 	songsService service.ISongService
 }
-
-func newSongsRoutes(g *gin.Engine, songsService service.ISongService) {
-	sL := &songsLibrary{songsService: songsService}
-	g.GET("/songs", sL.Songs)
-	g.GET("/text/:groupName/:songName/", sL.Text)
-	g.DELETE("/songs/:groupName/:songName/", sL.Delete)
-	g.PATCH("/songs/:id/", sL.Update)
-	g.POST("/songs/:releaseDate/:text/:link/", sL.Create)
+type SongInput struct {
+	GroupName string `json:"groupName" binding:"required"`
+	SongName  string `json:"songName" binding:"required"`
 }
 
-// Songs — метод контроллера для получения списка песен с фильтрацией и пагинацией.
+func newSongsRoutes(g *gin.RouterGroup, songsService service.ISongService) {
+	sL := &songsLibrary{songsService: songsService}
+	g.GET("/", sL.Songs)
+	g.GET("/text/:groupName/:songName/", sL.Text)
+	g.DELETE("/:groupName/:songName/", sL.Delete)
+	g.PATCH("/:id/", sL.Update)
+	g.POST("/:releaseDate/:text/:link/", sL.Create)
+}
+
+// Songs retrieves a list of songs with optional filtering and pagination.
+// @Summary Get a list of songs
+// @Tags songs
+// @Description Retrieves a list of songs based on query parameters like group name, song name, and release date.
+// @Accept json
+// @Produce json
+// @Param groupName query string false "Filter songs by group name"
+// @Param songName query string false "Filter songs by song name"
+// @Param text query string false "Filter songs by text content"
+// @Param link query string false "Filter songs by link"
+// @Param releaseDate query string false "Filter songs by release date (format: YYYY-MM-DD)"
+// @Param createdAt query string false "Filter songs by creation date (format: YYYY-MM-DD)"
+// @Param updatedAt query string false "Filter songs by last updated date (format: YYYY-MM-DD)"
+// @Param limit query int false "Number of songs to return per page (pagination)" default(10)
+// @Param offset query int false "Number of songs to skip before starting to return results (pagination)" default(0)
+// @Success 200 {array} model.Song "List o songs"
+// @Failure 400 {object} map[string]string "Invalid input or parameters"
+// @Failure 404 {object} map[string]string "No songs found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /songs [get]
 func (sL *songsLibrary) Songs(c *gin.Context) {
 	song := model.Song{
 		GroupName: c.Query("groupName"),
@@ -72,7 +96,13 @@ func (sL *songsLibrary) Songs(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid offset. Must be a non-negative integer."})
 		return
 	}
-
+	slog.Debug("Received request to retrieve songs", map[string]any{
+		"method":  c.Request.Method,
+		"url":     c.Request.URL,
+		"filters": song,
+		"offset":  offset,
+		"limit":   limit,
+	})
 	songs, err := sL.songsService.Songs(c.Request.Context(), song, limit, offset)
 	if err != nil {
 		if errors.Is(err, custom_errors.ErrNoRows) {
@@ -84,9 +114,24 @@ func (sL *songsLibrary) Songs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, songs)
+	slog.Info("Successfully retrieved songs", "songs", songs)
 }
 
-// Text — метод контроллера для получения текста песни.
+// Text — retrieves the text of a song by group name and song name with optional pagination
+// @Summary Get song text
+// @Tags songs
+// @Description Retrieve the text of a song by group name and song name with optional pagination
+// @Accept json
+// @Produce json
+// @Param groupName path string true "Name of the group"
+// @Param songName path string true "Name of the song"
+// @Param limit query int false "Maximum number of verses to return (default: 10)"
+// @Param offset query int false "Starting verse index (default: 0)"
+// @Success 200 {object} map[string]interface{} "Returns group name, song name, and text"
+// @Failure 400 {object} map[string]interface{} "Invalid query parameters or offset out of range"
+// @Failure 404 {object} map[string]interface{} "Song not found "
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /songs/text/{groupName}/{songName}/ [get]
 func (sL *songsLibrary) Text(c *gin.Context) {
 	groupName := c.Param("groupName")
 	songName := c.Param("songName")
@@ -109,7 +154,13 @@ func (sL *songsLibrary) Text(c *gin.Context) {
 		GroupName: groupName,
 		SongName:  songName,
 	}
-
+	slog.Debug("Received request to retrieve song text", map[string]any{
+		"method": c.Request.Method,
+		"url":    c.Request.URL,
+		"song":   song,
+		"offset": offsetInt,
+		"limit":  limitInt,
+	})
 	text, err := sL.songsService.Text(c, song, limitInt, offsetInt)
 	if err != nil {
 		if errors.Is(err, custom_errors.ErrNoRows) {
@@ -127,12 +178,31 @@ func (sL *songsLibrary) Text(c *gin.Context) {
 		"songName":  songName,
 		"text":      text,
 	})
+	slog.Info("Successfully retrieved song text", "song", song, "text", text)
 }
 
+// Delete — delete song
+// @Summary Delete a song
+// @Tags songs
+// @Description Delete a song by group name and song name
+// @Accept json
+// @Produce json
+// @Param groupName path string true "Name of the group"
+// @Param songName path string true "Name of the song"
+// @Success 200 {string} string "Song was deleted successfully"
+// @Failure 404 {object} map[string]interface{} "Song not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /songs/{groupName}/{songName} [delete]
 func (sL *songsLibrary) Delete(c *gin.Context) {
 	groupName := c.Param("groupName")
 	songName := c.Param("songName")
 
+	slog.Debug("Received request to delete song", map[string]any{
+		"method":    c.Request.Method,
+		"url":       c.Request.URL,
+		"groupName": groupName,
+		"songName":  songName,
+	})
 	err := sL.songsService.Delete(c, groupName, songName)
 	if err != nil {
 		if errors.Is(err, custom_errors.ErrNoRows) {
@@ -144,8 +214,26 @@ func (sL *songsLibrary) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, "song was deleted")
+	slog.Info("Successfully deleted song", "groupName", groupName, "songName", songName)
 }
 
+// Update — update song
+// @Summary Partially update a song
+// @Tags songs
+// @Description Update specific fields of a song by ID
+// @Accept json
+// @Produce json
+// @Param id path int true "ID of the song"
+// @Param groupName query string false "Updated name of the group"
+// @Param songName query string false "Updated name of the song"
+// @Param text query string false "Updated text of the song"
+// @Param link query string false "Updated link of the song"
+// @Param release_date query string false "Updated release date of the song in YYYY-MM-DD format"
+// @Success 200 {string} string "Song was updated successfully"
+// @Failure 400 {object} map[string]interface{} "Invalid request or parameters"
+// @Failure 404 {object} map[string]interface{} "Song not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /songs/{id} [patch]
 func (sL *songsLibrary) Update(c *gin.Context) {
 	song := model.Song{
 		GroupName: c.Query("groupName"),
@@ -169,9 +257,16 @@ func (sL *songsLibrary) Update(c *gin.Context) {
 		}
 	}
 
-	// обнуляем, чтобы не позволять обновить createdAt и updatedAt
+	// do not update createdAt и updatedAt
 	song.CreatedAt = time.Time{}
 	song.UpdatedAt = time.Time{}
+
+	slog.Debug("Received request to update song", map[string]any{
+		"method":      c.Request.Method,
+		"url":         c.Request.URL,
+		"song":        song,
+		"releaseDate": song.ReleaseDate,
+	})
 	err := sL.songsService.Update(c, song)
 	if err != nil {
 		if errors.Is(err, custom_errors.ErrNoRows) {
@@ -183,8 +278,24 @@ func (sL *songsLibrary) Update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, "song was updated")
+	slog.Info("Successfully updated song", "song", song)
 }
 
+// Create — create song
+// @Summary Create a new song
+// @Tags songs
+// @Description Add a new song to the library using path parameters and request body
+// @Accept json
+// @Produce json
+// @Param releaseDate path string true "Release date of the song in YYYY-MM-DD format"
+// @Param text path string true "Lyrics of the song"
+// @Param link path string true "URL to the song"
+// // @Param input body SongInput true "Additional song details (groupName, songName)"
+// @Success 200 {object} map[string]interface{} "Song successfully added"
+// @Failure 400 {object} map[string]interface{} "Invalid request or parameters"
+// @Failure 409 {object} map[string]interface{} "Song already exists"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /songs/{releaseDate}/{text}/{link} [post]
 func (sL *songsLibrary) Create(c *gin.Context) {
 
 	releaseDateStr := c.Param("releaseDate")
@@ -203,20 +314,27 @@ func (sL *songsLibrary) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Release date is required"})
 		return
 	}
-	var song model.Song
-	if err := c.ShouldBindJSON(&song); err != nil {
+	var songInput SongInput
+	if err := c.ShouldBindJSON(&songInput); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
+	var song model.Song
 	song.Text = text
 	song.Link = link
+	song.SongName = songInput.SongName
+	song.GroupName = songInput.GroupName
 	if date, err := time.Parse("2006-01-02", releaseDateStr); err == nil {
 		song.ReleaseDate = date
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid releaseDate format. Use YYYY-MM-DD."})
 		return
 	}
-
+	slog.Debug("Received request to create song", map[string]any{
+		"method": c.Request.Method,
+		"url":    c.Request.URL,
+		"song":   song,
+	})
 	err := sL.songsService.Create(c, song)
 	if err != nil {
 		if errors.Is(err, custom_errors.ErrNoSongInfo) {
@@ -229,4 +347,5 @@ func (sL *songsLibrary) Create(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Song successfully added"})
+	slog.Info("Successfully added song", "song", song)
 }

@@ -1,0 +1,294 @@
+basePath: /
+definitions:
+  model.Song:
+    properties:
+      createdAt:
+        type: string
+      groupName:
+        type: string
+      id:
+        type: integer
+      link:
+        type: string
+      releaseDate:
+        type: string
+      songName:
+        type: string
+      text:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  title: Testovoe_5
+  version: "1.0"
+paths:
+  /songs:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a list of songs based on query parameters like group
+        name, song name, and release date.
+      parameters:
+      - description: Filter songs by group name
+        in: query
+        name: groupName
+        type: string
+      - description: Filter songs by song name
+        in: query
+        name: songName
+        type: string
+      - description: Filter songs by text content
+        in: query
+        name: text
+        type: string
+      - description: Filter songs by link
+        in: query
+        name: link
+        type: string
+      - description: 'Filter songs by release date (format: YYYY-MM-DD)'
+        in: query
+        name: releaseDate
+        type: string
+      - description: 'Filter songs by creation date (format: YYYY-MM-DD)'
+        in: query
+        name: createdAt
+        type: string
+      - description: 'Filter songs by last updated date (format: YYYY-MM-DD)'
+        in: query
+        name: updatedAt
+        type: string
+      - default: 10
+        description: Number of songs to return per page (pagination)
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Number of songs to skip before starting to return results (pagination)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List o songs
+          schema:
+            items:
+              $ref: '#/definitions/model.Song'
+            type: array
+        "400":
+          description: Invalid input or parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: No songs found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a list of songs
+      tags:
+      - songs
+  /songs/{groupName}/{songName}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a song by group name and song name
+      parameters:
+      - description: Name of the group
+        in: path
+        name: groupName
+        required: true
+        type: string
+      - description: Name of the song
+        in: path
+        name: songName
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Song was deleted successfully
+          schema:
+            type: string
+        "404":
+          description: Song not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete a song
+      tags:
+      - songs
+  /songs/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Update specific fields of a song by ID
+      parameters:
+      - description: ID of the song
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated name of the group
+        in: query
+        name: groupName
+        type: string
+      - description: Updated name of the song
+        in: query
+        name: songName
+        type: string
+      - description: Updated text of the song
+        in: query
+        name: text
+        type: string
+      - description: Updated link of the song
+        in: query
+        name: link
+        type: string
+      - description: Updated release date of the song in YYYY-MM-DD format
+        in: query
+        name: release_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Song was updated successfully
+          schema:
+            type: string
+        "400":
+          description: Invalid request or parameters
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Song not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Partially update a song
+      tags:
+      - songs
+  /songs/{releaseDate}/{text}/{link}:
+    post:
+      consumes:
+      - application/json
+      description: Add a new song to the library using path parameters and request
+        body
+      parameters:
+      - description: Release date of the song in YYYY-MM-DD format
+        in: path
+        name: releaseDate
+        required: true
+        type: string
+      - description: Lyrics of the song
+        in: path
+        name: text
+        required: true
+        type: string
+      - description: URL to the song
+        in: path
+        name: link
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Song successfully added
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or parameters
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Song already exists
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a new song
+      tags:
+      - songs
+  /songs/text/{groupName}/{songName}/:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the text of a song by group name and song name with optional
+        pagination
+      parameters:
+      - description: Name of the group
+        in: path
+        name: groupName
+        required: true
+        type: string
+      - description: Name of the song
+        in: path
+        name: songName
+        required: true
+        type: string
+      - description: 'Maximum number of verses to return (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Starting verse index (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns group name, song name, and text
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid query parameters or offset out of range
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: 'Song not found '
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get song text
+      tags:
+      - songs
+swagger: "2.0"
